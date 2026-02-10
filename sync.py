@@ -8,6 +8,7 @@ Supports both full sync and incremental sync (only new/changed records).
 import json
 import requests
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -22,6 +23,24 @@ ZAPIER_WEBHOOKS = {
 }
 
 STATE_FILE = Path(__file__).parent / "sync_state.json"
+LOG_FILE = Path(__file__).parent / "sync.log"
+
+# Setup logging to both console and file
+class Logger:
+    def __init__(self, log_file: Path):
+        self.log_file = log_file
+        self.terminal = sys.stdout
+        
+    def write(self, message):
+        self.terminal.write(message)
+        self.terminal.flush()
+        with open(self.log_file, 'a') as f:
+            f.write(message)
+    
+    def flush(self):
+        self.terminal.flush()
+
+sys.stdout = Logger(LOG_FILE)
 
 
 class WeFactZapierSync:
@@ -33,7 +52,7 @@ class WeFactZapierSync:
         if STATE_FILE.exists():
             with open(STATE_FILE, 'r') as f:
                 return json.load(f)
-        return {"last_sync": {}}
+        return {"last_sync": {}, "total_runs": 0, "debtors_synced": 0, "invoices_synced": 0}
     
     def _save_state(self):
         """Save sync state to file."""
@@ -136,10 +155,15 @@ class WeFactZapierSync:
         print(f"Started: {datetime.now().isoformat()}")
         print(f"{'='*50}\n")
         
+        total_debtors = 0
+        total_invoices = 0
+        
         # Sync debtors
         debtors = self.fetch_debtors(full_sync=full_sync)
         if self.send_to_zapier("debtors", debtors):
             self.state["last_sync"]["debtors"] = datetime.now().isoformat()
+            total_debtors = len(debtors)
+            self.state["debtors_synced"] = self.state.get("debtors_synced", 0) + total_debtors
         
         print()
         
@@ -147,12 +171,19 @@ class WeFactZapierSync:
         invoices = self.fetch_invoices(full_sync=full_sync)
         if self.send_to_zapier("invoices", invoices):
             self.state["last_sync"]["invoices"] = datetime.now().isoformat()
+            total_invoices = len(invoices)
+            self.state["invoices_synced"] = self.state.get("invoices_synced", 0) + total_invoices
+        
+        # Update stats
+        self.state["total_runs"] = self.state.get("total_runs", 0) + 1
         
         # Save state
         self._save_state()
         
         print(f"\n{'='*50}")
         print(f"Sync completed: {datetime.now().isoformat()}")
+        print(f"Debtors synced: {total_debtors}")
+        print(f"Invoices synced: {total_invoices}")
         print(f"{'='*50}\n")
 
 

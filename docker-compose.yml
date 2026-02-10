@@ -5,7 +5,9 @@ services:
     container_name: wefact-zapier-sync
     volumes:
       - ./sync_state.json:/app/sync_state.json
+      - ./sync.log:/app/sync.log
     profiles: ["oneshot"]
+    command: ["python3", "sync.py"]
 
   # Scheduled sync - runs every hour using cron
   wefact-sync-scheduled:
@@ -13,8 +15,22 @@ services:
     container_name: wefact-zapier-sync-scheduled
     volumes:
       - ./sync_state.json:/app/sync_state.json
+      - ./sync.log:/app/sync.log
     environment:
       - SYNC_INTERVAL=3600  # seconds (1 hour)
     command: ["sh", "-c", "while true; do python3 sync.py; sleep $SYNC_INTERVAL; done"]
     restart: unless-stopped
     profiles: ["scheduled"]
+
+  # Dashboard - web UI for monitoring
+  dashboard:
+    build: .
+    container_name: wefact-dashboard
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./sync_state.json:/app/sync_state.json
+      - ./sync.log:/app/sync.log
+    command: ["python3", "dashboard.py"]
+    restart: unless-stopped
+    profiles: ["dashboard"]

@@ -9,6 +9,7 @@ Syncs debtors and invoices from WeFact to Zapier webhooks.
 - **Full sync option**: Can force sync all data when needed
 - **State tracking**: Remembers last sync time in `sync_state.json`
 - **Docker support**: Run in container with scheduled sync
+- **Web Dashboard**: Monitor sync status and trigger runs from browser
 
 ## Quick Start (Docker)
 
@@ -17,17 +18,27 @@ Syncs debtors and invoices from WeFact to Zapier webhooks.
 docker-compose --profile oneshot run --rm wefact-sync python3 sync.py --full
 
 # Scheduled sync (runs every hour)
-docker-compose --profile scheduled up -d wefact-sync-scheduled
+docker-compose --profile scheduled up -d
 
-# Stop scheduled sync
+# Dashboard (access at http://localhost:5000)
+docker-compose --profile dashboard up -d
+
+# Stop services
 docker-compose --profile scheduled down
+docker-compose --profile dashboard down
 ```
 
 ## Local Setup
 
 ```bash
 pip install -r requirements.txt
+
+# Run sync
 python3 sync.py --full
+
+# Run dashboard (in another terminal)
+python3 dashboard.py
+# Then open http://localhost:5000
 ```
 
 ## Usage
@@ -45,6 +56,16 @@ python3 sync.py
 # or with Docker:
 docker-compose --profile oneshot run --rm wefact-sync python3 sync.py
 ```
+
+## Dashboard
+
+The web dashboard provides:
+- **Sync status** - Last sync times for debtors and invoices
+- **Quick actions** - Trigger incremental or full sync from browser
+- **Live logs** - View recent sync output
+- **Real-time updates** - Auto-refreshes every 30 seconds
+
+Access at `http://localhost:5000` when running the dashboard.
 
 ## Webhooks
 
@@ -74,35 +95,42 @@ This means your Zap triggers for **each individual record**, making it easier to
 ## Files
 
 - `sync.py` - Main sync script
+- `dashboard.py` - Flask web dashboard
+- `templates/dashboard.html` - Dashboard UI
 - `sync_state.json` - Tracks last sync time (auto-created, gitignored)
+- `sync.log` - Log output (auto-created, gitignored)
 - `requirements.txt` - Python dependencies
 - `Dockerfile` - Container definition
-- `docker-compose.yml` - Docker Compose setup with scheduled sync option
+- `docker-compose.yml` - Docker Compose setup
 
 ## Docker Deployment
 
 ### Option 1: One-shot (manual runs)
 ```bash
-# Build image
-docker-compose build
-
-# Run once
 docker-compose --profile oneshot run --rm wefact-sync python3 sync.py --full
 ```
 
 ### Option 2: Scheduled (runs every hour automatically)
 ```bash
-# Start background container
 docker-compose --profile scheduled up -d
-
-# View logs
 docker-compose logs -f wefact-sync-scheduled
-
-# Stop
 docker-compose --profile scheduled down
 ```
 
-### Option 3: System cron
+### Option 3: Dashboard (web UI)
+```bash
+docker-compose --profile dashboard up -d
+# Access at http://localhost:5000
+docker-compose --profile dashboard down
+```
+
+### Option 4: Everything together
+```bash
+# Run both scheduled sync and dashboard
+docker-compose --profile scheduled --profile dashboard up -d
+```
+
+### Option 5: System cron
 Add to crontab:
 ```bash
 0 * * * * cd /path/to/wefact-zapier-sync && docker-compose --profile oneshot run --rm wefact-sync python3 sync.py
@@ -116,13 +144,16 @@ Add to crontab:
 
 ## Sync State
 
-The file `sync_state.json` tracks when each data type was last synced:
+The file `sync_state.json` tracks sync history:
 ```json
 {
   "last_sync": {
     "debtors": "2026-02-10T23:02:42",
     "invoices": "2026-02-10T23:02:42"
-  }
+  },
+  "total_runs": 5,
+  "debtors_synced": 276,
+  "invoices_synced": 668
 }
 ```
 
