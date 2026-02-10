@@ -95,7 +95,7 @@ class WeFactZapierSync:
         return invoices
     
     def send_to_zapier(self, data_type: str, records: List[Dict]) -> bool:
-        """Send records to Zapier webhook."""
+        """Send records to Zapier webhook one by one."""
         if not records:
             print(f"  No {data_type} to send.")
             return True
@@ -105,24 +105,28 @@ class WeFactZapierSync:
             print(f"  Error: No webhook configured for {data_type}")
             return False
         
-        print(f"  Sending {len(records)} {data_type} to Zapier...")
+        print(f"  Sending {len(records)} {data_type} to Zapier (one by one)...")
         
-        # Zapier expects an object, so we wrap the array
-        payload = {
-            "data_type": data_type,
-            "count": len(records),
-            "sync_time": datetime.now().isoformat(),
-            "records": records
-        }
+        success_count = 0
+        for i, record in enumerate(records, 1):
+            # Add metadata to each record
+            payload = {
+                "data_type": data_type,
+                "sync_time": datetime.now().isoformat(),
+                "record": record
+            }
+            
+            try:
+                response = requests.post(webhook_url, json=payload)
+                response.raise_for_status()
+                success_count += 1
+                if i % 50 == 0:
+                    print(f"    ...sent {i}/{len(records)}")
+            except requests.exceptions.RequestException as e:
+                print(f"    ✗ Error sending record {i} ({record.get('Identifier', 'unknown')}): {e}")
         
-        try:
-            response = requests.post(webhook_url, json=payload)
-            response.raise_for_status()
-            print(f"  ✓ Successfully sent {data_type} to Zapier")
-            return True
-        except requests.exceptions.RequestException as e:
-            print(f"  ✗ Error sending {data_type}: {e}")
-            return False
+        print(f"  ✓ Successfully sent {success_count}/{len(records)} {data_type} to Zapier")
+        return success_count == len(records)
     
     def sync(self, full_sync: bool = False):
         """Run the sync process."""

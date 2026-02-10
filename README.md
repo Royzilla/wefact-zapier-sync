@@ -36,15 +36,21 @@ python sync.py
 
 ## Payload Format
 
-Zapier receives:
+Zapier receives one request per record:
 ```json
 {
   "data_type": "debtors|invoices",
-  "count": 42,
-  "sync_time": "2026-02-10T23:01:00",
-  "records": [...]
+  "sync_time": "2026-02-10T23:05:00",
+  "record": {
+    "Identifier": "1",
+    "DebtorCode": "DB10000",
+    "CompanyName": "...",
+    ...
+  }
 }
 ```
+
+This means your Zap triggers for **each individual record**, making it easier to process/filter in Zapier.
 
 ## Files
 
