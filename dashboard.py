@@ -46,12 +46,15 @@ def api_logs():
 def trigger_sync():
     """Trigger a sync run."""
     full_sync = request.json.get('full', False) if request.json else False
+    full_details = request.json.get('full_details', False) if request.json else False
     
     try:
         # Run sync in background
         cmd = ['python3', 'sync.py']
         if full_sync:
             cmd.append('--full')
+        if full_details:
+            cmd.append('--full-details')
         
         # Start process
         process = subprocess.Popen(
@@ -64,6 +67,7 @@ def trigger_sync():
         return jsonify({
             "status": "started",
             "full_sync": full_sync,
+            "full_details": full_details,
             "timestamp": datetime.now().isoformat()
         })
     except Exception as e:

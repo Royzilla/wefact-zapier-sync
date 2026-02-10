@@ -73,7 +73,7 @@ class WeFactZapierSync:
         response.raise_for_status()
         return response.json()
     
-    def fetch_debtors(self, full_sync: bool = False) -> List[Dict]:
+    def fetch_debtors(self, full_sync: bool = False, full_details: bool = False) -> List[Dict]:
         """Fetch debtors from WeFact."""
         print(f"Fetching debtors... {'(full sync)' if full_sync else '(incremental)'}")
         
@@ -90,6 +90,32 @@ class WeFactZapierSync:
             print(f"  Found {len(debtors)} new/changed debtors since {last_sync_time}")
         else:
             print(f"  Found {len(debtors)} total debtors")
+        
+        # Fetch full details if requested
+        if full_details:
+            print(f"  Fetching full details for each debtor...")
+            detailed_debtors = []
+            for i, debtor in enumerate(debtors, 1):
+                try:
+                    detail = self._wefact_request(
+                        "debtor", 
+                        "show", 
+                        {"Identifier": debtor["Identifier"]}
+                    )
+                    if "debtor" in detail:
+                        detailed_debtors.append(detail["debtor"])
+                    else:
+                        # Fall back to list data if show fails
+                        detailed_debtors.append(debtor)
+                    
+                    if i % 20 == 0:
+                        print(f"    ...fetched {i}/{len(debtors)} details")
+                except Exception as e:
+                    print(f"    ✗ Error fetching debtor {debtor.get('Identifier')}: {e}")
+                    detailed_debtors.append(debtor)
+            
+            debtors = detailed_debtors
+            print(f"  ✓ Fetched full details for {len(debtors)} debtors")
         
         return debtors
     
@@ -147,11 +173,12 @@ class WeFactZapierSync:
         print(f"  ✓ Successfully sent {success_count}/{len(records)} {data_type} to Zapier")
         return success_count == len(records)
     
-    def sync(self, full_sync: bool = False):
+    def sync(self, full_sync: bool = False, full_details: bool = False):
         """Run the sync process."""
         print(f"\n{'='*50}")
         print(f"WeFact → Zapier Sync")
         print(f"Mode: {'FULL SYNC' if full_sync else 'INCREMENTAL'}")
+        print(f"Debtor details: {'FULL' if full_details else 'BASIC'}")
         print(f"Started: {datetime.now().isoformat()}")
         print(f"{'='*50}\n")
         
@@ -159,7 +186,7 @@ class WeFactZapierSync:
         total_invoices = 0
         
         # Sync debtors
-        debtors = self.fetch_debtors(full_sync=full_sync)
+        debtors = self.fetch_debtors(full_sync=full_sync, full_details=full_details)
         if self.send_to_zapier("debtors", debtors):
             self.state["last_sync"]["debtors"] = datetime.now().isoformat()
             total_debtors = len(debtors)
@@ -196,11 +223,16 @@ def main():
         action="store_true", 
         help="Perform full sync (all records) instead of incremental"
     )
+    parser.add_argument(
+        "--full-details",
+        action="store_true",
+        help="Fetch full debtor details (address, phone, email, etc.) - slower but more complete"
+    )
     
     args = parser.parse_args()
     
     sync = WeFactZapierSync()
-    sync.sync(full_sync=args.full)
+    sync.sync(full_sync=args.full, full_details=args.full_details)
 
 
 if __name__ == "__main__":

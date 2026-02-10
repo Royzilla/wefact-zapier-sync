@@ -249,11 +249,14 @@
         
         <div class="actions">
             <h2>Actions</h2>
-            <button class="btn" onclick="triggerSync(false)" id="btn-sync">
+            <button class="btn" onclick="triggerSync(false, false)" id="btn-sync">
                 🚀 Quick Sync (Incremental)
             </button>
-            <button class="btn btn-secondary" onclick="triggerSync(true)" id="btn-full">
+            <button class="btn btn-secondary" onclick="triggerSync(true, false)" id="btn-full">
                 🔄 Full Sync (All Data)
+            </button>
+            <button class="btn" style="background: #ed8936;" onclick="triggerSync(true, true)" id="btn-details">
+                📋 Full Sync + Details
             </button>
             <span id="sync-spinner"></span>
         </div>
@@ -323,27 +326,33 @@
             }
         }
         
-        async function triggerSync(full) {
+        async function triggerSync(full, fullDetails = false) {
             const btnSync = document.getElementById('btn-sync');
             const btnFull = document.getElementById('btn-full');
+            const btnDetails = document.getElementById('btn-details');
             const spinner = document.getElementById('sync-spinner');
             
             // Disable buttons during sync
             btnSync.disabled = true;
             btnFull.disabled = true;
+            btnDetails.disabled = true;
             spinner.innerHTML = '<div class="loading"></div>';
             
             try {
                 const response = await fetch('/api/sync', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ full })
+                    body: JSON.stringify({ full: full, full_details: fullDetails })
                 });
                 
                 const data = await response.json();
                 
                 if (data.status === 'started') {
-                    showToast(full ? 'Full sync started!' : 'Quick sync started!');
+                    let message = 'Sync started!';
+                    if (full && fullDetails) message = 'Full sync with details started!';
+                    else if (full) message = 'Full sync started!';
+                    else message = 'Quick sync started!';
+                    showToast(message);
                     document.getElementById('status-text').textContent = 'Sync in progress...';
                     document.getElementById('status-badge').className = 'status status-pending';
                     document.getElementById('status-badge').textContent = 'Running';
@@ -356,6 +365,7 @@
                 // Re-enable buttons
                 btnSync.disabled = false;
                 btnFull.disabled = false;
+                btnDetails.disabled = false;
                 spinner.innerHTML = '';
                 
                 // Refresh status after a delay
