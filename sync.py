@@ -119,7 +119,7 @@ class WeFactZapierSync:
         
         return debtors
     
-    def fetch_invoices(self, full_sync: bool = False) -> List[Dict]:
+    def fetch_invoices(self, full_sync: bool = False, full_details: bool = False) -> List[Dict]:
         """Fetch invoices from WeFact."""
         print(f"Fetching invoices... {'(full sync)' if full_sync else '(incremental)'}")
         
@@ -136,6 +136,32 @@ class WeFactZapierSync:
             print(f"  Found {len(invoices)} new/changed invoices since {last_sync_time}")
         else:
             print(f"  Found {len(invoices)} total invoices")
+        
+        # Fetch full details if requested
+        if full_details:
+            print(f"  Fetching full details for each invoice...")
+            detailed_invoices = []
+            for i, invoice in enumerate(invoices, 1):
+                try:
+                    detail = self._wefact_request(
+                        "invoice", 
+                        "show", 
+                        {"Identifier": invoice["Identifier"]}
+                    )
+                    if "invoice" in detail:
+                        detailed_invoices.append(detail["invoice"])
+                    else:
+                        # Fall back to list data if show fails
+                        detailed_invoices.append(invoice)
+                    
+                    if i % 20 == 0:
+                        print(f"    ...fetched {i}/{len(invoices)} details")
+                except Exception as e:
+                    print(f"    ✗ Error fetching invoice {invoice.get('Identifier')}: {e}")
+                    detailed_invoices.append(invoice)
+            
+            invoices = detailed_invoices
+            print(f"  ✓ Fetched full details for {len(invoices)} invoices")
         
         return invoices
     
@@ -178,7 +204,7 @@ class WeFactZapierSync:
         print(f"\n{'='*50}")
         print(f"WeFact → Zapier Sync")
         print(f"Mode: {'FULL SYNC' if full_sync else 'INCREMENTAL'}")
-        print(f"Debtor details: {'FULL' if full_details else 'BASIC'}")
+        print(f"Full details: {'YES' if full_details else 'NO'}")
         print(f"Started: {datetime.now().isoformat()}")
         print(f"{'='*50}\n")
         
@@ -195,7 +221,7 @@ class WeFactZapierSync:
         print()
         
         # Sync invoices
-        invoices = self.fetch_invoices(full_sync=full_sync)
+        invoices = self.fetch_invoices(full_sync=full_sync, full_details=full_details)
         if self.send_to_zapier("invoices", invoices):
             self.state["last_sync"]["invoices"] = datetime.now().isoformat()
             total_invoices = len(invoices)
@@ -226,7 +252,7 @@ def main():
     parser.add_argument(
         "--full-details",
         action="store_true",
-        help="Fetch full debtor details (address, phone, email, etc.) - slower but more complete"
+        help="Fetch full details for debtors AND invoices (address, phone, line items, etc.) - slower but more complete"
     )
     
     args = parser.parse_args()
