@@ -1,0 +1,20 @@
+services:
+  # One-shot sync (default) - runs once then exits
+  wefact-sync:
+    build: .
+    container_name: wefact-zapier-sync
+    volumes:
+      - ./sync_state.json:/app/sync_state.json
+    profiles: ["oneshot"]
+
+  # Scheduled sync - runs every hour using cron
+  wefact-sync-scheduled:
+    build: .
+    container_name: wefact-zapier-sync-scheduled
+    volumes:
+      - ./sync_state.json:/app/sync_state.json
+    environment:
+      - SYNC_INTERVAL=3600  # seconds (1 hour)
+    command: ["sh", "-c", "while true; do python3 sync.py; sleep $SYNC_INTERVAL; done"]
+    restart: unless-stopped
+    profiles: ["scheduled"]
